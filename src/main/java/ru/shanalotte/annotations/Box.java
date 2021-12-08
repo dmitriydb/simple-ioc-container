@@ -8,12 +8,12 @@ import java.lang.annotation.Target;
 /**
  * Аннотация, которая определяет класс, объекты которого могут быть внедрены в другие объекты
  *
- * @version 1.0
+ * @version 1.1
  * @since 1.0
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Box {
     BoxType type() default BoxType.SINGLETON;
-    String name();
+    String name() default "";
 }

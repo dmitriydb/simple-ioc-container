@@ -9,10 +9,10 @@ import java.lang.annotation.Target;
  * Аннотация, которая позволяет установить внедряемому объекту пользовательское имя
  * И затем получать его в основном коде по этому имени через метод getBox(String)
  *
- * @version 1.0
+ * @version 1.1
  * @since 1.0
  */
-@Target(ElementType.FIELD)
+@Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ChooseName {
     String name();

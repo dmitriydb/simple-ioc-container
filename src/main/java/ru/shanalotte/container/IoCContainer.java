@@ -4,7 +4,6 @@ import org.reflections.Reflections;
 import org.reflections.scanners.SubTypesScanner;
 import ru.shanalotte.annotations.*;
 import ru.shanalotte.domain.Box;
-import ru.shanalotte.testboxes.InjectedClass;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -14,7 +13,7 @@ import java.util.stream.Collectors;
  * Класс, реализующий логику IoC-контейнера
  * Управляет внедряемыми объектами (Box) и компонентами приложения (Component)
  *
- * @version 1.0
+ * @version 1.1
  * @since 1.0
  */
 public class IoCContainer {
@@ -36,11 +35,6 @@ public class IoCContainer {
     private static Set<Box> supportedBoxes = new HashSet<>();
 
     /**
-     * Множество поддерживаемых компонентов
-     */
-    private static Set<Class> componentClasses = new HashSet<>();
-
-    /**
      * Загружает Box по классу
      * <p>
      * Если был запрошен @Component, то
@@ -50,11 +44,26 @@ public class IoCContainer {
      * @param clazz
      * @return
      */
-    public static Object getBox(Class clazz) {
-        if (componentClasses.contains(clazz))
-            return initializeComponent(clazz);
-        else
+    public static Object getBox(Class clazz) throws NoSuchBoxException {
+        try {
+            return findBox(clazz);
+        } catch (NoSuchElementException ex) {
+            throw new NoSuchBoxException(" Was looking for class " + clazz.getCanonicalName());
+        }
+    }
+
+    /**
+     * Общий метод поиска Box-а
+     * Должен использоваться всеми методами getBox(...)
+     *
+     * @param clazz
+     * @return
+     */
+    private static Object findBox(Class clazz) {
+        if (supportedBoxes.stream().filter(box -> box.getClazz().equals(clazz)).count() > 0)
             return getBoxObjectByClass(clazz);
+        else
+            throw new NoSuchBoxException("Not found loaded box with class " + clazz.getCanonicalName());
     }
 
     /**
@@ -64,12 +73,14 @@ public class IoCContainer {
      * @param name
      * @return
      * @since 1.0
-     * todo: добавить поддержку имен для @Component
-     * todo: пользовательские исключения повсеместно
      */
     public static Object getBox(String name) {
-        Class clazz = boxesByName.entrySet().stream().filter(b -> b.getKey().equals(name)).findFirst().get().getValue();
-        return getBoxObjectByClass(clazz);
+        try {
+            Class clazz = boxesByName.entrySet().stream().filter(b -> b.getKey().equals(name)).findFirst().get().getValue();
+            return findBox(clazz);
+        } catch (NoSuchElementException ex) {
+            throw new NoSuchBoxException(" Was looking by custom box name " + name);
+        }
     }
 
     /**
@@ -83,30 +94,8 @@ public class IoCContainer {
         findBoxesInPackage("com");
         findBoxesInPackage("org");
         findBoxesInPackage("net");
-        loadComponents("ru");
-        loadComponents("com");
-        loadComponents("org");
-        loadComponents("net");
     }
 
-    /**
-     * Загружает компоненты из пакета верхнего уровня
-     * В данный момент компоненты нельзя внедрять в другие Box-ы
-     *
-     * @param packageRoot
-     * @since 1.0
-     * todo: внедрение компонентов в другие компоненты
-     */
-    private static void loadComponents(String packageRoot) {
-        Reflections reflections = new Reflections(packageRoot,
-                new SubTypesScanner(false));
-        Set<Class<? extends Object>> allClasses =
-                reflections.getSubTypesOf(Object.class);
-        for (Class c : allClasses) {
-            Component component = (Component) c.getAnnotation(Component.class);
-            if (component != null) componentClasses.add(c);
-        }
-    }
 
     /**
      * Инициализирует компонент, инжектит в него Box-ы и возвращает объект
@@ -115,7 +104,7 @@ public class IoCContainer {
      * @return
      * @since 1.0
      */
-    private static Object initializeComponent(Class c) {
+    private static Object initializeBox(Class c) {
         Object object;
         Field[] fields;
         try {
@@ -142,13 +131,37 @@ public class IoCContainer {
                 try {
                     injected = true;
                     f.setAccessible(true);
-                    f.set(object, getBoxObjectByClass(desiredClass));
+
+                    if (desiredClass == null)
+                        throw new NoSuchBoxException("Was trying to inject box with class " + f.getType() + " but there is no box with such class loaded in container");
+
+                    try{
+                        f.set(object, getBoxObjectByClass(desiredClass));
+                    }
+                    catch (NullPointerException ex){
+                        throw new NoSuchBoxException("Was trying to inject box with class " + desiredClass.getCanonicalName() + " but there is no box with such class loaded in container");
+                    }
+
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
                 }
             }
         }
         return object;
+    }
+
+    /**
+     * метод возвращает синглтон, создавая его, если он не существовал до этого
+     * @param clazz
+     */
+    private static Object getSingleton(Class clazz){
+        if (singletons.containsKey(clazz))
+            return singletons.get(clazz);
+
+        Object o = initializeBox(clazz);
+        singletons.put(clazz, o);
+
+        return o;
     }
 
     /**
@@ -169,8 +182,10 @@ public class IoCContainer {
             box = boxList.stream().findFirst().orElse(null);
         }
 
-        if (box.getType().equals(BoxType.SINGLETON))
-            return singletons.get(box.getClazz());
+        if (box.getType().equals(BoxType.SINGLETON)){
+            return getSingleton(box.getClazz());
+        }
+
         try {
             return box.getClazz().newInstance();
         } catch (InstantiationException e) {
@@ -195,11 +210,23 @@ public class IoCContainer {
         for (Class c : allClasses) {
             //загружаем бины
             ru.shanalotte.annotations.Box annotation = (ru.shanalotte.annotations.Box) c.getAnnotation(ru.shanalotte.annotations.Box.class);
+            Component componentAnnotation = (Component) c.getAnnotation(Component.class);
             Primary primary = (Primary) c.getAnnotation(Primary.class);
-            if (annotation != null) {
-                String name = annotation.name();
-                BoxType type = annotation.type();
-
+            if (annotation != null || componentAnnotation != null) {
+                String name;
+                BoxType type;
+                if (annotation != null){
+                    name = annotation.name();
+                    type = annotation.type();
+                }
+                else
+                {
+                    name = componentAnnotation.name();
+                    type = componentAnnotation.type();
+                }
+                if (supportedBoxes.stream().map(box -> box.getName()).anyMatch(e -> e.equals(name))){
+                    throw new BoxNameAlreadyExists("Box with user name \"" + name + "\" is already registered!");
+                }
                 Class clazz = c;
                 Box box = new Box();
                 box.setClazz(clazz);
@@ -208,16 +235,6 @@ public class IoCContainer {
                 if (primary != null) box.setPrimary(true);
                 supportedBoxes.add(box);
                 boxesByName.put(name, clazz);
-                if (type.equals(BoxType.SINGLETON)) {
-                    try {
-                        Object singletonObject = clazz.newInstance();
-                        singletons.put(clazz, singletonObject);
-                    } catch (InstantiationException e) {
-                        e.printStackTrace();
-                    } catch (IllegalAccessException e) {
-                        e.printStackTrace();
-                    }
-                }
             }
         }
     }

@@ -13,7 +13,7 @@ public class Box {
     /**
      * Тип внедряемого компонента (singleton, prototype)
      */
-    private BoxType type;
+    private BoxType type = BoxType.SINGLETON;
     /**
      * Класс внедряемого объекта
      */
