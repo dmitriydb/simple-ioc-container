@@ -90,7 +90,9 @@ public class IoCContainer {
      * @since 1.0
      */
     public static void loadBoxes() {
+        System.out.println("ru");
         findBoxesInPackage("ru");
+        System.out.println("com");
         findBoxesInPackage("com");
         findBoxesInPackage("org");
         findBoxesInPackage("net");
@@ -224,7 +226,7 @@ public class IoCContainer {
                     name = componentAnnotation.name();
                     type = componentAnnotation.type();
                 }
-                if (supportedBoxes.stream().map(box -> box.getName()).anyMatch(e -> e.equals(name))){
+                if (!name.equals("") && supportedBoxes.stream().map(box -> box.getName()).filter(e -> e.equals(name)).count() > 0){
                     throw new BoxNameAlreadyExists("Box with user name \"" + name + "\" is already registered!");
                 }
                 Class clazz = c;
@@ -238,4 +240,16 @@ public class IoCContainer {
             }
         }
     }
+
+    /**
+     * Очищает контейнер от всех Box-ов
+     *
+     * @since 1.1
+     */
+    public static void clear(){
+        boxesByName.clear();
+        supportedBoxes.clear();
+        singletons.clear();
+    }
+
 }

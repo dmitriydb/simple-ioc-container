@@ -1,12 +1,17 @@
 package ru.shanalotte.container;
 
 import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import ru.shanalotte.annotations.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class IoCContainerTest {
+
+    static {
+        IoCContainer.loadBoxes();
+    }
 
     public static class F{};
 
@@ -97,7 +102,7 @@ public class IoCContainerTest {
     };
 
     @Box(
-            name = "singleton",
+            name = "singleton_",
             type = BoxType.SINGLETON
     )
     public static class SingleBox{
@@ -110,14 +115,12 @@ public class IoCContainerTest {
 
     @Test
     public void boxIsLoaded(){
-        IoCContainer.loadBoxes();
         ProtoBox testBox = (ProtoBox) IoCContainer.getBox(ProtoBox.class);
         assertEquals(testBox.getValue(),"value");
     }
 
     @Test
     public void prototypeBoxesAreNotTheSame(){
-        IoCContainer.loadBoxes();
         ProtoBox testBox = (ProtoBox) IoCContainer.getBox(ProtoBox.class);
         ProtoBox testBox2 = (ProtoBox) IoCContainer.getBox(ProtoBox.class);
         assertNotSame(testBox2, testBox);
@@ -125,7 +128,6 @@ public class IoCContainerTest {
 
     @Test
     public void singletonBoxesAreTheSame(){
-        IoCContainer.loadBoxes();
         SingleBox testBox = (SingleBox)IoCContainer.getBox(SingleBox.class);
         SingleBox testBox2 = (SingleBox)IoCContainer.getBox(SingleBox.class);
         assertSame(testBox, testBox2);
@@ -133,15 +135,13 @@ public class IoCContainerTest {
 
     @Test
     public void loadingByNameIsWorking(){
-        IoCContainer.loadBoxes();
-        SingleBox testBox = (SingleBox)IoCContainer.getBox("singleton");
+        SingleBox testBox = (SingleBox)IoCContainer.getBox("singleton_");
         String result = testBox.getValue();
         assertEquals(result, "value");
     }
 
     @Test
     public void singletonIsDefaultType(){
-        IoCContainer.loadBoxes();
         C c1 = (C)IoCContainer.getBox(C.class);
         C c2 = (C)IoCContainer.getBox(C.class);
         assertSame(c1, c2);
@@ -149,62 +149,53 @@ public class IoCContainerTest {
 
     @Test
     public void primaryIsWorking(){
-        IoCContainer.loadBoxes();
         I i = (I)IoCContainer.getBox(I.class);
         assertTrue(i.a instanceof D);
     }
 
     @Test
     public void injectingByNameIsWorking(){
-        IoCContainer.loadBoxes();
         I2 i = (I2)IoCContainer.getBox(I2.class);
         assertTrue(i.a instanceof C);
     }
 
     @Test
     public void componentsByNameIsWorking(){
-        IoCContainer.loadBoxes();
         E e = (E)IoCContainer.getBox("myComp");
         assertTrue(e instanceof E);
     }
 
     @Test(expected = NoSuchBoxException.class)
     public void exceptionThrownWhenNoSuchBoxNameLoaded(){
-        IoCContainer.loadBoxes();
         Object x = IoCContainer.getBox("I dont exist");
 
     }
 
     @Test(expected = NoSuchBoxException.class)
     public void exceptionThrownWhenNoSuchBoxClassLoaded(){
-        IoCContainer.loadBoxes();
         Object x = IoCContainer.getBox(java.lang.Exception.class);
 
     }
 
     @Test
     public void componentInjectingIsWorking(){
-        IoCContainer.loadBoxes();
         Outer o = (Outer)IoCContainer.getBox("outer");
         assertTrue(o.inner.value().equals("xxx"));
     }
 
     @Test
     public void componentInjectingByNameIsWorking(){
-        IoCContainer.loadBoxes();
         Outer2 o = (Outer2)IoCContainer.getBox("outer2");
         assertTrue(o.inner.value().equals("xxx2"));
     }
 
     @Test(expected = NoSuchBoxException.class)
     public void injectingNonexistantBoxThrowsError(){
-        IoCContainer.loadBoxes();
         Outer3 o = (Outer3)IoCContainer.getBox(Outer3.class);
     }
 
     @Test(expected = NoSuchBoxException.class)
     public void injectingNonexistantBoxByClassThrowsError(){
-        IoCContainer.loadBoxes();
         Outer4 o = (Outer4)IoCContainer.getBox(Outer4.class);
     }
 }
